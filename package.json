@@ -1,7 +1,7 @@
 {
-  "name": "telegraf-starter",
-  "version": "0.0.2",
-  "description": "Telegraf TS Starter kit",
+  "name": "saving-capital-bot",
+  "version": "0.0.1",
+  "description": "Telegraf TS bot",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc",
@@ -11,21 +11,13 @@
     "start": "node dist/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ioscars/telegraf-starter.git"
-  },
   "keywords": [
     "telegraf",
-    "typescript",
-    "starter"
+    "typescript"
   ],
-  "author": "oscars@live.ru",
+  "author": "Roman Vilkov <aurimcreo@gmail.com>",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/ioscars/telegraf-starter/issues"
-  },
-  "homepage": "https://github.com/ioscars/telegraf-starter#readme",
+  "homepage": "https://github.com/Roman-Kiriko/saving-capital-bot#readme",
   "dependencies": {
     "axios": "^0.27.2",
     "telegraf": "^4.3.0",
