@@ -1,6 +1,6 @@
 const { env } = process
 
-const isProd = env.NODE_ENV === 'development'
+const isProd = env.NODE_ENV === 'production'
 
 export default {
   token: env.BOT_TOKEN!,

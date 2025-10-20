@@ -19,7 +19,7 @@ export default function (bot: MyBot) {
 }
 
 declare module '../declarations' {
-  class MyContext {
+  interface MyContext {
     logger: Logger
   }
 }

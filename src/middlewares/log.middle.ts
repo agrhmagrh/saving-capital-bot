@@ -1,7 +1,7 @@
 import { MyContext } from "../declarations";
 
 export default () =>
-  async function (ctx: MyContext, next: any) {
+  async function (ctx: MyContext, next: () => Promise<void>) {
     const start = new Date();
     try {
       await next();
