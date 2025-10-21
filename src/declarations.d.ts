@@ -8,6 +8,7 @@ interface UserData {
   startDate: Date;
   lastTopUpDate?: Date;
   notificationTime?: number; // час для уведомлений (9, 12, 15, 18, 21)
+  enableCongratulations?: boolean; // включить поздравления при пополнении
 }
 
 interface SessionData {

@@ -26,6 +26,7 @@ export default function (bot: MyBot) {
       "Каждый день выбирайте число от 1 до 365 и пополняйте брокерский счет на эту сумму\\.\n\n" +
       "🎯 *Правила:*\n" +
       "• Каждое число можно использовать только один раз\n" +
+      "• Пополнение возможно только один раз в сутки\n" +
       "• Бот запомнит все ваши пополнения\n" +
       "• Максимальная сумма за год: *66 795 рублей*",
       { 
@@ -51,6 +52,17 @@ export default function (bot: MyBot) {
     if (!number || number < 1 || number > 365) {
       await ctx.reply(
         "❌ Пожалуйста, введите целое число от 1 до 365"
+      );
+      return next();
+    }
+
+    // Проверяем, пополнял ли пользователь уже сегодня
+    if (userStorage.hasTopUpToday(userId)) {
+      await ctx.reply(
+        "⏰ *Вы уже пополняли счет сегодня\\!*\n\n" +
+        "Пополнение возможно только один раз в сутки\\. Попробуйте завтра\\!\n\n" +
+        "💡 Используйте /stats чтобы посмотреть текущий прогресс",
+        { parse_mode: 'MarkdownV2' }
       );
       return next();
     }
@@ -231,24 +243,44 @@ export default function (bot: MyBot) {
         return next();
       }
 
-      const success = userStorage.addUsedNumber(userId, amount);
+      // Проверяем причину отказа
+      const hasTopUpToday = userStorage.hasTopUpToday(userId);
+      const isNumberUsed = userStorage.isNumberUsed(userId, amount);
       
-      if (success) {
-        const stats = userStorage.getUserStats(userId);
+      if (hasTopUpToday) {
         await ctx.editMessageText(
-          `✅ *Отлично\\!* Пополнение на *${formatNumber(amount)}* рублей зафиксировано\n\n` +
-          `💰 Общая сумма: *${formatNumber(stats?.totalAmount || 0)}* рублей\n` +
-          `📊 Использовано чисел: *${formatNumber(stats?.usedCount || 0)}*/365\n\n` +
-          `Продолжайте копить\\! 💪`,
+          "⏰ *Вы уже пополняли счет сегодня\\!*\n\n" +
+          "Пополнение возможно только один раз в сутки\\. Попробуйте завтра\\!\n\n" +
+          "💡 Используйте /stats чтобы посмотреть текущий прогресс",
           { parse_mode: 'MarkdownV2' }
         );
-        await ctx.answerCbQuery("Пополнение зафиксировано! 💰");
-      } else {
+        await ctx.answerCbQuery("Уже пополняли сегодня!", { show_alert: true });
+      } else if (isNumberUsed) {
         await ctx.editMessageText(
           `❌ Ошибка: число ${formatNumber(amount)} уже использовалось\\!`,
           { parse_mode: 'MarkdownV2' }
         );
         await ctx.answerCbQuery("Число уже использовалось!", { show_alert: true });
+      } else {
+        const success = userStorage.addUsedNumber(userId, amount);
+        
+        if (success) {
+          const stats = userStorage.getUserStats(userId);
+          await ctx.editMessageText(
+            `✅ *Отлично\\!* Пополнение на *${formatNumber(amount)}* рублей зафиксировано\n\n` +
+            `💰 Общая сумма: *${formatNumber(stats?.totalAmount || 0)}* рублей\n` +
+            `📊 Использовано чисел: *${formatNumber(stats?.usedCount || 0)}*/365\n\n` +
+            `Продолжайте копить\\! 💪`,
+            { parse_mode: 'MarkdownV2' }
+          );
+          await ctx.answerCbQuery("Пополнение зафиксировано! 💰");
+        } else {
+          await ctx.editMessageText(
+            "❌ Произошла ошибка при сохранении пополнения\\. Попробуйте еще раз\\.",
+            { parse_mode: 'MarkdownV2' }
+          );
+          await ctx.answerCbQuery("Ошибка сохранения!", { show_alert: true });
+        }
       }
     } catch (error) {
       console.error('Ошибка в confirm_topup:', error);
@@ -275,6 +307,7 @@ export default function (bot: MyBot) {
       "Каждый день выбирайте число от 1 до 365 и пополняйте брокерский счет на эту сумму\\.\n\n" +
       "🎯 *Правила:*\n" +
       "• Каждое число можно использовать только один раз\n" +
+      "• Пополнение возможно только один раз в сутки\n" +
       "• Бот запомнит все ваши пополнения\n" +
       "• Максимальная сумма за год: *66 795 рублей*",
       { 
@@ -396,8 +429,170 @@ export default function (bot: MyBot) {
     );
     await ctx.answerCbQuery();
     return next();
-  });  
-common.help((ctx) => ctx.reply(commands.text));
+  });
+
+  // Команда для проверки последнего пополнения
+  common.command("today", async (ctx, next) => {
+    try {
+      const userId = ctx.from?.id;
+      if (!userId) return next();
+
+      userStorage.initUser(userId);
+      
+      const hasTopUpToday = userStorage.hasTopUpToday(userId);
+      const stats = userStorage.getUserStats(userId);
+      
+      if (hasTopUpToday) {
+        await ctx.reply(
+          "✅ *Сегодня вы уже пополнили счет\\!*\n\n" +
+          `💰 Общая сумма: *${formatNumber(stats?.totalAmount || 0)}* рублей\n` +
+          `📊 Использовано чисел: *${formatNumber(stats?.usedCount || 0)}*/365\n\n` +
+          "Следующее пополнение будет доступно завтра\\!",
+          { parse_mode: 'MarkdownV2' }
+        );
+      } else {
+        await ctx.reply(
+          "⏰ *Сегодня вы еще не пополняли счет*\n\n" +
+          "Введите число от 1 до 365 для пополнения\\!\n\n" +
+          "💡 Используйте /available чтобы посмотреть доступные числа",
+          { parse_mode: 'MarkdownV2' }
+        );
+      }
+    } catch (error) {
+      console.error('Ошибка в команде today:', error);
+      await ctx.reply("Произошла ошибка при проверке статуса. Попробуйте еще раз.");
+    }
+    
+    return next();
+  });
+
+  common.help((ctx) => ctx.reply(commands.text));
+
+  // Команда для управления настройками уведомлений
+  common.command("settings", async (ctx, next) => {
+    try {
+      const userId = ctx.from?.id;
+      if (!userId) return next();
+
+      userStorage.initUser(userId);
+      const user = userStorage.getUser(userId);
+      
+      const hasNotifications = user?.notificationTime !== undefined;
+      const hasCongratulations = user?.enableCongratulations === true;
+      
+      await ctx.reply(
+        "⚙️ *Настройки уведомлений*\n\n" +
+        `🔔 Напоминания: ${hasNotifications ? `включены в ${user?.notificationTime}:00` : 'отключены'}\n` +
+        `🎉 Поздравления: ${hasCongratulations ? 'включены' : 'отключены'}\n\n` +
+        "Выберите что настроить:",
+        {
+          parse_mode: 'MarkdownV2',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback("🔔 Время напоминаний", "set_time")],
+            [Markup.button.callback(hasCongratulations ? "🎉 Отключить поздравления" : "🎉 Включить поздравления", "toggle_congratulations")],
+            [Markup.button.callback("🔙 Назад", "back_to_main")]
+          ])
+        }
+      );
+    } catch (error) {
+      console.error('Ошибка в команде settings:', error);
+      await ctx.reply("Произошла ошибка при получении настроек. Попробуйте еще раз.");
+    }
+    
+    return next();
+  });
+
+  // Действие переключения поздравлений
+  common.action("toggle_congratulations", async (ctx, next) => {
+    try {
+      const userId = ctx.from?.id;
+      if (!userId) return next();
+
+      const user = userStorage.getUser(userId);
+      const currentState = user?.enableCongratulations === true;
+      const newState = !currentState;
+      
+      userStorage.setCongratulations(userId, newState);
+      
+      await ctx.editMessageText(
+        `✅ Поздравления ${newState ? 'включены' : 'отключены'}\\!\n\n` +
+        `${newState ? 
+          'Теперь вы будете получать поздравления в установленное время, если уже пополнили счет сегодня\\.' : 
+          'Поздравления отключены\\. Вы будете получать только напоминания о пополнении\\.'
+        }`,
+        { 
+          parse_mode: 'MarkdownV2',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback("⚙️ Настройки", "settings_back")],
+            [Markup.button.callback("🔙 Главное меню", "back_to_main")]
+          ])
+        }
+      );
+      
+      await ctx.answerCbQuery(`Поздравления ${newState ? 'включены' : 'отключены'}!`);
+    } catch (error) {
+      console.error('Ошибка в toggle_congratulations:', error);
+      await ctx.answerCbQuery("Произошла ошибка", { show_alert: true });
+    }
+    
+    return next();
+  });
+
+  // Действие возврата к настройкам
+  common.action("settings_back", async (ctx, next) => {
+    try {
+      const userId = ctx.from?.id;
+      if (!userId) return next();
+
+      const user = userStorage.getUser(userId);
+      const hasNotifications = user?.notificationTime !== undefined;
+      const hasCongratulations = user?.enableCongratulations === true;
+      
+      await ctx.editMessageText(
+        "⚙️ *Настройки уведомлений*\n\n" +
+        `🔔 Напоминания: ${hasNotifications ? `включены в ${user?.notificationTime}:00` : 'отключены'}\n` +
+        `🎉 Поздравления: ${hasCongratulations ? 'включены' : 'отключены'}\n\n` +
+        "Выберите что настроить:",
+        {
+          parse_mode: 'MarkdownV2',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback("🔔 Время напоминаний", "set_time")],
+            [Markup.button.callback(hasCongratulations ? "🎉 Отключить поздравления" : "🎉 Включить поздравления", "toggle_congratulations")],
+            [Markup.button.callback("🔙 Назад", "back_to_main")]
+          ])
+        }
+      );
+      
+      await ctx.answerCbQuery();
+    } catch (error) {
+      console.error('Ошибка в settings_back:', error);
+      await ctx.answerCbQuery("Произошла ошибка", { show_alert: true });
+    }
+    
+    return next();
+  });
+
+  // Действие установки времени из настроек
+  common.action("set_time", async (ctx, next) => {
+    const timeButtons = [9, 12, 15, 18, 21].map((time) =>
+      Markup.button.callback(`${time}:00`, `time_${time}`)
+    );
+    const markupTime = Markup.inlineKeyboard([
+      timeButtons.slice(0, 3),
+      timeButtons.slice(3),
+      [Markup.button.callback("🔙 К настройкам", "settings_back")]
+    ]);
+
+    await ctx.editMessageText(
+      "🕐 Выберите время для ежедневных напоминаний:",
+      markupTime
+    );
+    
+    await ctx.answerCbQuery();
+    return next();
+  });
+
+  common.help((ctx) => ctx.reply(commands.text));
 
   bot.use(common);
 }

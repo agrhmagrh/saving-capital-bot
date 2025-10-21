@@ -49,6 +49,11 @@ class UserStorageService {
     const user = this.users.get(userId);
     if (!user) return false;
 
+    // Проверяем, пополнял ли пользователь уже сегодня
+    if (this.hasTopUpToday(userId)) {
+      return false; // Уже пополнял сегодня
+    }
+
     if (user.usedNumbers.has(number)) {
       return false; // Число уже использовалось
     }
@@ -142,6 +147,25 @@ class UserStorageService {
   // Создать резервную копию данных
   createBackup(): void {
     dataStorage.createBackup();
+  }
+
+  // Включить/отключить поздравления
+  setCongratulations(userId: number, enabled: boolean): boolean {
+    const user = this.users.get(userId);
+    if (!user) return false;
+
+    user.enableCongratulations = enabled;
+    this.saveData();
+    return true;
+  }
+
+  // Получить пользователей для поздравлений
+  getUsersForCongratulations(hour: number): UserData[] {
+    return Array.from(this.users.values()).filter(
+      user => user.notificationTime === hour && 
+              user.enableCongratulations === true &&
+              this.hasTopUpToday(user.userId)
+    );
   }
 }
 
