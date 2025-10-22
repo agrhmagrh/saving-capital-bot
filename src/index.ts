@@ -1,6 +1,6 @@
 import bot from "./bot"
 import config from "./config"
-import { startNotificationScheduler } from "./tasks/notifications"
+import { startNotificationScheduler, stopNotificationScheduler } from "./tasks/notifications"
 
 const logger = bot.context.logger!
 
@@ -10,14 +10,27 @@ async function main() {
     logger.info('The bot is working')
     
     // Запускаем планировщик уведомлений
-    startNotificationScheduler()
-    logger.info('Notification scheduler started')
+    const schedulerStarted = startNotificationScheduler()
+    if (schedulerStarted) {
+      logger.info('Notification scheduler started successfully')
+    } else {
+      logger.warn('Notification scheduler failed to start (already running?)')
+    }
     
     // Enable graceful stop
-    process.once('SIGINT', () => bot.stop('SIGINT'))
-    process.once('SIGTERM', () => bot.stop('SIGTERM'))
+    process.once('SIGINT', () => {
+      logger.info('Stopping bot and scheduler...')
+      stopNotificationScheduler()
+      bot.stop('SIGINT')
+    })
+    process.once('SIGTERM', () => {
+      logger.info('Stopping bot and scheduler...')
+      stopNotificationScheduler()
+      bot.stop('SIGTERM')
+    })
   } catch (err) {
     logger.error(err)
+    stopNotificationScheduler()
   }
 }
 
