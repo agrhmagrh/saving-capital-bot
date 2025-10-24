@@ -699,19 +699,25 @@ export default function (bot: MyBot) {
 
       const fs = require("fs");
       const path = require("path");
-      const notificationFile = path.join(
-        process.cwd(),
-        "data",
-        "last_notifications.json"
-      );
-
+      const notificationFile = path.join(process.cwd(), "data", "last_notifications.json");
+      const userNotificationFile = path.join(process.cwd(), "data", "user_notifications.json");
+      
+      let filesCleared = 0;
+      
       if (fs.existsSync(notificationFile)) {
         fs.unlinkSync(notificationFile);
-        await ctx.reply(
-          "✅ Файл уведомлений очищен. Теперь уведомления можно отправить заново."
-        );
+        filesCleared++;
+      }
+      
+      if (fs.existsSync(userNotificationFile)) {
+        fs.unlinkSync(userNotificationFile);
+        filesCleared++;
+      }
+      
+      if (filesCleared > 0) {
+        await ctx.reply(`✅ Очищено файлов уведомлений: ${filesCleared}. Теперь уведомления можно отправить заново.`);
       } else {
-        await ctx.reply("ℹ️ Файл уведомлений не найден.");
+        await ctx.reply("ℹ️ Файлы уведомлений не найдены.");
       }
     } catch (error) {
       console.error("Ошибка в команде clear_notifications:", error);

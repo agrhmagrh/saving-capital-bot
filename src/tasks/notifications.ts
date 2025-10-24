@@ -10,12 +10,20 @@ export async function sendDailyReminders(hour: number) {
   
   const allUsers = userStorage.getUsersForNotification(hour);
   
-  // Фильтруем пользователей: отправляем уведомления только тем, кто еще не пополнял сегодня
-  const usersNeedingReminder = allUsers.filter(user => !userStorage.hasTopUpToday(user.userId));
+  // Фильтруем пользователей: отправляем уведомления только тем, кто:
+  // 1. Еще не пополнял сегодня
+  // 2. Еще не получал уведомление сегодня (независимо от времени)
+  const usersNeedingReminder = allUsers.filter(user => 
+    !userStorage.hasTopUpToday(user.userId) && !hasUserNotificationSentToday(user.userId)
+  );
+  
+  const usersAlreadyTopUp = allUsers.filter(user => userStorage.hasTopUpToday(user.userId));
+  const usersAlreadyNotified = allUsers.filter(user => hasUserNotificationSentToday(user.userId));
   
   console.log(`📊 Статистика:`);
   console.log(`  - Всего пользователей с уведомлениями: ${allUsers.length}`);
-  console.log(`  - Уже пополнили сегодня: ${allUsers.length - usersNeedingReminder.length}`);
+  console.log(`  - Уже пополнили сегодня: ${usersAlreadyTopUp.length}`);
+  console.log(`  - Уже получили уведомление сегодня: ${usersAlreadyNotified.length}`);
   console.log(`  - Нужно отправить напоминания: ${usersNeedingReminder.length}`);
   
   if (usersNeedingReminder.length === 0) {
@@ -43,6 +51,8 @@ export async function sendDailyReminders(hour: number) {
       );
       
       successCount++;
+      // Отмечаем, что пользователю отправлено уведомление сегодня
+      markUserNotificationSent(user.userId);
       console.log(`  ✅ Напоминание отправлено пользователю ${user.userId}`);
     } catch (error) {
       errorCount++;
@@ -50,10 +60,13 @@ export async function sendDailyReminders(hour: number) {
     }
   }
   
-  // Если есть пользователи, которые уже пополнили, логируем это
-  const usersAlreadyTopUp = allUsers.filter(user => userStorage.hasTopUpToday(user.userId));
+  // Логируем пропущенных пользователей
   if (usersAlreadyTopUp.length > 0) {
-    console.log(`  ℹ️ Пропущены пользователи (уже пополнили): ${usersAlreadyTopUp.map(u => u.userId).join(', ')}`);
+    console.log(`  ℹ️ Пропущены (уже пополнили): ${usersAlreadyTopUp.map(u => u.userId).join(', ')}`);
+  }
+  
+  if (usersAlreadyNotified.length > 0) {
+    console.log(`  ℹ️ Пропущены (уже получили уведомление): ${usersAlreadyNotified.map(u => u.userId).join(', ')}`);
   }
   
   console.log(`📈 Итого: ${successCount} успешно, ${errorCount} ошибок`);
@@ -62,12 +75,13 @@ export async function sendDailyReminders(hour: number) {
 
 // Файлы для отслеживания состояния
 const NOTIFICATION_LOG_FILE = path.join(process.cwd(), 'data', 'last_notifications.json');
+const USER_NOTIFICATIONS_FILE = path.join(process.cwd(), 'data', 'user_notifications.json');
 const SCHEDULER_LOCK_FILE = path.join(process.cwd(), 'data', 'scheduler.lock');
 
 // Переменная для хранения ID интервала
 let schedulerInterval: NodeJS.Timeout | null = null;
 
-// Функция для проверки, отправляли ли уже уведомления в этот час сегодня
+// Функция для проверки, отправляли ли уже уведомления в этот час сегодня (для планировщика)
 function hasNotificationSentToday(hour: number): boolean {
   try {
     if (!fs.existsSync(NOTIFICATION_LOG_FILE)) {
@@ -82,6 +96,59 @@ function hasNotificationSentToday(hour: number): boolean {
   } catch (error) {
     console.error('Ошибка чтения файла уведомлений:', error);
     return false;
+  }
+}
+
+// Функция для проверки, отправляли ли уведомление конкретному пользователю сегодня
+function hasUserNotificationSentToday(userId: number): boolean {
+  try {
+    if (!fs.existsSync(USER_NOTIFICATIONS_FILE)) {
+      return false;
+    }
+    
+    const data = JSON.parse(fs.readFileSync(USER_NOTIFICATIONS_FILE, 'utf8'));
+    const today = new Date().toDateString();
+    const key = `${today}_${userId}`;
+    
+    return data[key] === true;
+  } catch (error) {
+    console.error('Ошибка чтения файла пользовательских уведомлений:', error);
+    return false;
+  }
+}
+
+// Функция для записи, что уведомление отправлено пользователю
+function markUserNotificationSent(userId: number): void {
+  try {
+    // Создаем папку data если её нет
+    const dataDir = path.dirname(USER_NOTIFICATIONS_FILE);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    let data: { [key: string]: boolean } = {};
+    if (fs.existsSync(USER_NOTIFICATIONS_FILE)) {
+      data = JSON.parse(fs.readFileSync(USER_NOTIFICATIONS_FILE, 'utf8'));
+    }
+    
+    const today = new Date().toDateString();
+    const key = `${today}_${userId}`;
+    data[key] = true;
+    
+    // Очищаем старые записи (старше 7 дней)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    Object.keys(data).forEach(k => {
+      const [dateStr] = k.split('_');
+      if (new Date(dateStr) < weekAgo) {
+        delete data[k];
+      }
+    });
+    
+    fs.writeFileSync(USER_NOTIFICATIONS_FILE, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('Ошибка записи файла пользовательских уведомлений:', error);
   }
 }
 
