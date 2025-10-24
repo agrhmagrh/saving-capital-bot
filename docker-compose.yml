@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: saving-capital-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      # Монтируем директорию data для сохранения данных
+      - ./data:/app/data
+    ports:
+      # Открываем порт только если используется webhook
+      - "3000:3000"
+    # Настройки для логирования
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
