@@ -7,14 +7,17 @@ WORKDIR /app
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем зависимости
-RUN npm ci --only=production
+# Устанавливаем все зависимости для сборки
+RUN npm ci
 
 # Копируем исходный код
 COPY . .
 
 # Собираем проект
 RUN npm run build
+
+# Удаляем dev зависимости и очищаем кэш
+RUN npm prune --production && npm cache clean --force
 
 # Создаем пользователя для безопасности
 RUN addgroup -g 1001 -S nodejs

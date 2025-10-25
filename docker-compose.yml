@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   bot:
@@ -12,9 +12,9 @@ services:
     volumes:
       # Монтируем директорию data для сохранения данных
       - ./data:/app/data
-    ports:
-      # Открываем порт только если используется webhook
-      - "3000:3000"
+    # ports:
+    # Раскомментируйте если используете webhook
+    # - "3000:3000"
     # Настройки для логирования
     logging:
       driver: "json-file"

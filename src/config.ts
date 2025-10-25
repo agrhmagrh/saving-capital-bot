@@ -11,8 +11,8 @@ export default {
   },
   launch: {
     dropPendingUpdates: env.BOT_SKIP_UPDATES!,
-    webhook: isProd ? {
-      domain: env.DOMAIN!,
+    webhook: (isProd && env.DOMAIN) ? {
+      domain: env.DOMAIN,
       port: +env.PORT!,
       hookPath: env.BOT_HOOKPATH!
     } : undefined,
